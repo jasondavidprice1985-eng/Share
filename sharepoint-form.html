@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omega PLC - Form Submission</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #070b16 0%, #1a1f3a 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: #0d1526;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 18px;
+            padding: 40px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #e2e8f0;
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+        
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #94a3b8;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 12px 14px;
+            background: #121d30;
+            border: 1px solid rgba(255,255,255,0.13);
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-family: inherit;
+            font-size: 0.875rem;
+            transition: border-color 0.2s;
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: #172236;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        button:hover:not(:disabled) {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: center;
+            display: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        .success {
+            background: rgba(16,185,129,0.15);
+            color: #10b981;
+            border: 1px solid rgba(16,185,129,0.3);
+        }
+        
+        .error {
+            background: rgba(244,63,94,0.15);
+            color: #f43f5e;
+            border: 1px solid rgba(244,63,94,0.3);
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 4px;
+            height: 4px;
+            background: currentColor;
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+            margin-left: 5px;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 Submit Form</h1>
+        <p class="subtitle">Send your information - it will be saved securely</p>
+        
+        <form id="contactForm">
+            <div class="form-group">
+                <label for="name">Name</label>
+                <input type="text" id="name" name="name" placeholder="Your full name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" placeholder="your@email.com" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="message">Message</label>
+                <textarea id="message" name="message" placeholder="Type your message here..." required></textarea>
+            </div>
+            
+            <button type="submit" id="submitBtn">
+                Submit Form
+            </button>
+            
+            <div class="message success" id="successMessage">
+                ✅ Submitted successfully! Your data has been saved.
+            </div>
+            
+            <div class="message error" id="errorMessage">
+                ❌ Error submitting form. Please try again.
+            </div>
+        </form>
+    </div>
+    
+    <script>
+        const form = document.getElementById('contactForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const successMessage = document.getElementById('successMessage');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        // SharePoint configuration
+        const SHAREPOINT_SITE = 'https://omegaplc.sharepoint.com/sites/Demo';
+        const LIST_NAME = 'FormSubmission';
+        
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const message = document.getElementById('message').value.trim();
+            
+            // Validation
+            if (!name || !email || !message) {
+                showError('Please fill in all fields');
+                return;
+            }
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting' + Array(4).fill('.').join('');
+            successMessage.style.display = 'none';
+            errorMessage.style.display = 'none';
+            
+            try {
+                // Step 1: Get the request digest (CSRF token)
+                const digestResponse = await fetch(`${SHAREPOINT_SITE}/_api/contextinfo`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+                
+                if (!digestResponse.ok) {
+                    throw new Error('Failed to get authentication token. You may need to be logged into SharePoint.');
+                }
+                
+                const digestData = await digestResponse.json();
+                const digest = digestData.d.GetContextWebInformation.FormDigestValue;
+                
+                // Step 2: Submit the form data to SharePoint
+                const itemData = {
+                    __metadata: { type: 'SP.Data.FormSubmissionListItem' },
+                    Title: name,
+                    Name: name,
+                    Email: email,
+                    Message: message
+                };
+                
+                const submitResponse = await fetch(
+                    `${SHAREPOINT_SITE}/_api/web/lists/getbytitle('${LIST_NAME}')/items`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-RequestDigest': digest
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify(itemData)
+                    }
+                );
+                
+                if (!submitResponse.ok) {
+                    const errorData = await submitResponse.text();
+                    console.error('SharePoint error:', errorData);
+                    throw new Error(`SharePoint returned status ${submitResponse.status}`);
+                }
+                
+                // Success!
+                showSuccess();
+                form.reset();
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError(error.message || 'Failed to submit form. Check console for details.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Form';
+            }
+        });
+        
+        function showSuccess() {
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+            setTimeout(() => {
+                successMessage.style.display = 'none';
+            }, 5000);
+        }
+        
+        function showError(message) {
+            errorMessage.textContent = '❌ ' + message;
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
